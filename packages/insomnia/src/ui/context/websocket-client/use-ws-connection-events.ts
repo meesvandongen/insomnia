@@ -45,7 +45,7 @@ export function useWebSocketConnectionEvents({ requestId }: { requestId: string 
       isMounted = false;
       unsubscribe();
     };
-  }, [requestId, findMany, subscribe]);
+  }, [requestId, findMany, subscribe, clearToSend]);
 
   return events;
 }
