@@ -9,9 +9,6 @@ const webSocketConnection = {
   close: (options: { requestId: string }) => {
     return ipcRenderer.invoke('webSocketRequest.connection.close', options);
   },
-  clearToSend: () => {
-    return ipcRenderer.invoke('webSocketRequest.connection.clearToSend');
-  },
   readyState: {
     getCurrent: (options: { requestId: string }) => {
       return ipcRenderer.invoke('webSocketRequest.connection.readyState', options);
@@ -67,6 +64,9 @@ const webSocketConnection = {
         'webSocketRequest.connection.event.send',
         options
       );
+    },
+    clearToSend: () => {
+      return ipcRenderer.invoke('webSocketRequest.connection.clearToSend');
     },
   },
 };

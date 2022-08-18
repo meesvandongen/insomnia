@@ -13,11 +13,11 @@ export function useWSMessage(requestId: string): WebsocketEvent | null {
         setMessage(incomingEvent[incomingEvent.length - 1]);
 
         window.requestAnimationFrame(
-          window.main.webSocketConnection.clearToSend);
+          window.main.webSocketConnection.event.clearToSend);
       }
     );
 
-    window.main.webSocketConnection.clearToSend();
+    window.main.webSocketConnection.event.clearToSend();
 
     return unsubscribe;
   }, [requestId]);
