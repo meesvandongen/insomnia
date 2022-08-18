@@ -9,10 +9,15 @@ export function useWSMessage(requestId: string): WebsocketEvent | null {
   useEffect(() => {
     const unsubscribe = window.main.webSocketConnection.event.subscribe(
       { requestId },
-      (incomingEvent: WebsocketEvent) => {
-        setMessage(incomingEvent);
+      (incomingEvent: WebsocketEvent[]) => {
+        setMessage(incomingEvent[incomingEvent.length - 1]);
+
+        window.requestAnimationFrame(
+          window.main.webSocketConnection.clearToSend);
       }
     );
+
+    window.main.webSocketConnection.clearToSend();
 
     return unsubscribe;
   }, [requestId]);

@@ -28,12 +28,16 @@ export function useWebSocketConnectionEvents({ requestId }: { requestId: string 
       // Subscribe to new events and update the state.
       unsubscribe = subscribe(
         { requestId },
-        event => {
+        events => {
           if (isMounted) {
-            setEvents(events => events.concat([event]));
+            setEvents(allEvents => allEvents.concat(events));
           }
+          window.requestAnimationFrame(
+            window.main.webSocketConnection.clearToSend);
         }
       );
+
+      window.main.webSocketConnection.clearToSend();
     }
 
     fetchAndSubscribeToEvents();

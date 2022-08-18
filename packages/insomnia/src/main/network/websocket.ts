@@ -57,6 +57,25 @@ export type WebSocketEventLog = WebsocketEvent[];
 const WebSocketConnections = new Map<string, WebSocket>();
 const WebSocketEventLogs = new Map<string, WebSocketEventLog>();
 
+// Flow control state
+let clearToSend = true;
+const sendQueueMap = new Map<string, WebSocketEventLog>();
+
+function dispatchWebSocketEvent(target: Electron.WebContents, eventChannel: string, wsEvent: WebsocketEvent) {
+  if (clearToSend) {
+    target.send(eventChannel, [wsEvent]);
+    clearToSend = false;
+    return;
+  }
+
+  const sendQueue = sendQueueMap.get(eventChannel);
+  if (sendQueue) {
+    sendQueue.push(wsEvent);
+  } else {
+    sendQueueMap.set(eventChannel, [wsEvent]);
+  }
+}
+
 async function createWebSocketConnection(
   event: Electron.IpcMainInvokeEvent,
   options: { requestId: string }
@@ -97,7 +116,7 @@ async function createWebSocketConnection(
 
       WebSocketEventLogs.set(options.requestId, [openEvent]);
 
-      event.sender.send(eventChannel, openEvent);
+      dispatchWebSocketEvent(event.sender, eventChannel, openEvent);
       event.sender.send(readyStateChannel, ws.readyState);
     });
 
@@ -113,7 +132,7 @@ async function createWebSocketConnection(
       };
 
       WebSocketEventLogs.set(options.requestId, [...msgs, messageEvent]);
-      event.sender.send(eventChannel, messageEvent);
+      dispatchWebSocketEvent(event.sender, eventChannel, messageEvent);
     });
 
     ws.addEventListener('close', ({ code, reason, wasClean }) => {
@@ -131,7 +150,7 @@ async function createWebSocketConnection(
       WebSocketEventLogs.set(options.requestId, [...msgs, closeEvent]);
       WebSocketConnections.delete(options.requestId);
 
-      event.sender.send(eventChannel, closeEvent);
+      dispatchWebSocketEvent(event.sender, eventChannel, closeEvent);
       event.sender.send(readyStateChannel, ws.readyState);
     });
 
@@ -149,7 +168,7 @@ async function createWebSocketConnection(
       WebSocketEventLogs.set(options.requestId, [...msgs, errorEvent]);
       WebSocketConnections.delete(options.requestId);
 
-      event.sender.send(eventChannel, errorEvent);
+      dispatchWebSocketEvent(event.sender, eventChannel, errorEvent);
       event.sender.send(readyStateChannel, ws.readyState);
     });
   } catch (e) {
@@ -203,7 +222,7 @@ async function sendWebSocketEvent(
     lastMessage,
   ]);
   const eventChannel = `webSocketRequest.connection.${options.requestId}.event`;
-  event.sender.send(eventChannel, lastMessage);
+  dispatchWebSocketEvent(event.sender, eventChannel, lastMessage);
 }
 
 async function closeWebSocketConnection(
@@ -225,10 +244,27 @@ async function getWebSocketConnectionEvents(
   return connectionMessages;
 }
 
+function signalClearToSend(event: Electron.IpcMainInvokeEvent) {
+  const nextChannel = sendQueueMap.keys().next();
+  if (nextChannel.done) {
+    clearToSend = true;
+    return;
+  }
+
+  const sendQueue = sendQueueMap.get(nextChannel.value);
+  if (!sendQueue) {
+    return;
+  }
+
+  event.sender.send(nextChannel.value, sendQueue);
+  sendQueueMap.delete(nextChannel.value);
+}
+
 export function registerWebSocketHandlers() {
   ipcMain.handle('webSocketRequest.connection.create', createWebSocketConnection);
   ipcMain.handle('webSocketRequest.connection.readyState', getWebSocketReadyState);
   ipcMain.handle('webSocketRequest.connection.event.send', sendWebSocketEvent);
   ipcMain.handle('webSocketRequest.connection.close', closeWebSocketConnection);
   ipcMain.handle('webSocketRequest.connection.event.findMany', getWebSocketConnectionEvents);
+  ipcMain.handle('webSocketRequest.connection.clearToSend', signalClearToSend);
 }
